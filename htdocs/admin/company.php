@@ -232,7 +232,31 @@ if (($action == 'update' && !GETPOST("cancel", 'alpha'))
 	}
 
 	dolibarr_set_const($db, "MAIN_INFO_SOCIETE_MANAGERS", GETPOST("MAIN_INFO_SOCIETE_MANAGERS", 'alphanohtml'), 'chaine', 0, '', $conf->entity);
-	dolibarr_set_const($db, "MAIN_INFO_GDPR", GETPOST("MAIN_INFO_GDPR", 'alphanohtml'), 'chaine', 0, '', $conf->entity);
+	$oldGdprUserId = getDolGlobalInt("MAIN_INFO_GDPR");
+	$gdprUserId = GETPOSTINT("MAIN_INFO_GDPR");
+	dolibarr_set_const($db, "MAIN_INFO_GDPR", ($gdprUserId > 0 ? (string) $gdprUserId : ''), 'chaine', 0, '', $conf->entity);
+	if ($gdprUserId !== $oldGdprUserId && isModEnabled('agenda')) {
+		require_once DOL_DOCUMENT_ROOT.'/comm/action/class/actioncomm.class.php';
+		$dpoUser = new User($db);
+		$dpoName = '';
+		if ($gdprUserId > 0 && $dpoUser->fetch($gdprUserId) > 0) {
+			$dpoName = $dpoUser->getFullName($langs);
+		}
+		$actioncomm = new ActionComm($db);
+		$actioncomm->type_code = 'AC_OTH_AUTO';
+		$actioncomm->code = 'AC_GDPR_DPO_ASSIGN';
+		$actioncomm->label = ($gdprUserId > 0 && $dpoName !== '')
+			? $langs->transnoentities('GDPRContactAssignedEvent', $dpoName)
+			: $langs->transnoentities('GDPRContactUnassignedEvent');
+		$actioncomm->datep = dol_now();
+		$actioncomm->percentage = 100;
+		$targetUserId = ($gdprUserId > 0) ? $gdprUserId : $user->id;
+		$actioncomm->userownerid = $targetUserId;
+		$actioncomm->userassigned = array($targetUserId => array('id' => $targetUserId, 'transparency' => 0));
+		$actioncomm->fk_element = $targetUserId;
+		$actioncomm->elementtype = 'user';
+		$actioncomm->create($user);
+	}
 	dolibarr_set_const($db, "MAIN_INFO_CAPITAL", GETPOST("capital", 'alphanohtml'), 'chaine', 0, '', $conf->entity);
 	dolibarr_set_const($db, "MAIN_INFO_SOCIETE_FORME_JURIDIQUE", GETPOST("forme_juridique_code", 'alphanohtml'), 'chaine', 0, '', $conf->entity);
 	dolibarr_set_const($db, "MAIN_INFO_SIREN", GETPOST("siren", 'alphanohtml'), 'chaine', 0, '', $conf->entity);
@@ -646,10 +670,17 @@ print '<tr class="oddeven"><td class="titlefieldcreate smallheight"><label for="
 print '<input name="MAIN_INFO_SOCIETE_MANAGERS" id="directors" class="minwidth300" value="'.dolPrintHTMLForAttribute((GETPOSTISSET('MAIN_INFO_SOCIETE_MANAGERS') ? GETPOST('MAIN_INFO_SOCIETE_MANAGERS', 'alphanohtml') : getDolGlobalString('MAIN_INFO_SOCIETE_MANAGERS'))).'"></td></tr>';
 
 // GDPR contact
+$gdprUser = GETPOSTISSET("MAIN_INFO_GDPR") ? GETPOST("MAIN_INFO_GDPR", 'alphanohtml') : getDolGlobalString('MAIN_INFO_GDPR');
+$gdprSelected = (is_numeric($gdprUser) && (int) $gdprUser > 0) ? (int) $gdprUser : '';
 print '<tr class="oddeven"><td class="smallheight">';
 print $form->textwithpicto($langs->trans("GDPRContact"), $langs->trans("GDPRContactDesc"));
 print '</td><td>';
-print '<input name="MAIN_INFO_GDPR" id="infodirector" class="minwidth300" value="'.dolPrintHTMLForAttribute((GETPOSTISSET("MAIN_INFO_GDPR") ? GETPOST("MAIN_INFO_GDPR", 'alphanohtml') : getDolGlobalString('MAIN_INFO_GDPR'))).'"></td></tr>';
+print img_picto('', 'user', 'class="pictofixedwidth"');
+print $form->select_dolusers($gdprSelected, 'MAIN_INFO_GDPR', 1, null, 0, '', '', 'default', 0, 0, '', 0, '', 'minwidth300', 1);
+if (!is_numeric($gdprUser) && !empty($gdprUser)) {
+	print ' <span class="opacitymedium">('.dolPrintHTML((string) $gdprUser).')</span>';
+}
+print '</td></tr>';
 
 // Capital
 print '<tr class="oddeven"><td><label for="capital">'.$langs->trans("Capital").'</label></td><td>';
