@@ -43,7 +43,7 @@ require_once DOL_DOCUMENT_ROOT.'/core/class/html.formcompany.class.php';
  */
 
 // Load translation files required by the page
-$langs->loadLangs(array('products'));
+$langs->loadLangs(array('products', 'companies'));
 
 $id = GETPOSTINT('id');
 $ref = GETPOST('ref', 'alpha');
@@ -56,10 +56,16 @@ if ($user->socid) {
 }
 
 $object = new Product($db);
-$result = $object->fetch($id, $ref);
-if (!$result) {
-	print 'Record not found';
-	exit;
+$result = 0;
+if ($id > 0 || !empty($ref)) {
+	$result = $object->fetch($id, $ref);
+	if ($result < 0) {
+		dol_print_error($db, $object->error, $object->errors);
+		exit;
+	}
+}
+if ($result == 0) {
+	recordNotFound();
 }
 
 if ($object->id > 0) {
@@ -129,15 +135,15 @@ $title = $langs->trans('ProductServiceCard');
 $help_url = "";
 $shortlabel = dol_trunc($object->label, 16);
 if (GETPOST("type") == '0' || ($object->type == Product::TYPE_PRODUCT)) {
-	$title = $langs->trans('Product')." ".$shortlabel." - ".$langs->trans('Notes');
+	$title = $langs->trans('Product')." ".$shortlabel." - ".$langs->trans('ContactsAddresses');
 	$help_url = 'EN:Module_Products|FR:Module_Produits|ES:M&oacute;dulo_Productos|DE:Modul_Produkte';
 }
 if (GETPOST("type") == '1' || ($object->type == Product::TYPE_SERVICE)) {
-	$title = $langs->trans('Service')." ".$shortlabel." - ".$langs->trans('Notes');
+	$title = $langs->trans('Service')." ".$shortlabel." - ".$langs->trans('ContactsAddresses');
 	$help_url = 'EN:Module_Services_En|FR:Module_Services|ES:M&oacute;dulo_Servicios|DE:Modul_Leistungen';
 }
 
-llxHeader('', $title, $help_url, '', 0, 0, '', '', '', 'mod-product page-card_note');
+llxHeader('', $title, $help_url, '', 0, 0, '', '', '', 'mod-product page-card_contact');
 
 // Mode vue et edition
 
