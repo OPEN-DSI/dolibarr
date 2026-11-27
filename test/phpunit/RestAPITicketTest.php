@@ -461,6 +461,42 @@ class RestAPITicketTest extends AbstractRestAPITest
 	}
 
 	/**
+	 * Add a message with an attachment with executable content to a ticket: it must be saved with .noexe
+	 *
+	 * @return void
+	 */
+	public function testRestTicketNewMessageAttachmentNoExe()
+	{
+		global $conf;
+
+		$test = "Add a message with a php attachment to a ticket";
+
+		$ticket_id = $this->createTicket($test);
+		$result = $this->getUrl('tickets/'.$ticket_id, $test);
+		$ref = (string) $result['content']['ref'];
+		$this->assertNotEmpty($ref, "$test The ticket must have a ref");
+
+		$filename = 'testRestTicket'.mt_rand().'.php';
+		$data = array(
+			"id" => $ticket_id,
+			"message" => "Message with a php attachment added via the REST API",
+			"attachments" => array(
+				array("filename" => $filename, "filecontent" => base64_encode("<?php echo 'test';"), "fileencoding" => "base64"),
+			),
+		);
+		$result = $this->getUrl('tickets/newmessage', $test, 'POST', $data);
+		$this->assertEquals($ticket_id, (int) $result['content'], "$test The id of the ticket must be returned");
+
+		$destdir = $conf->ticket->dir_output.'/'.$ref;
+		if (getDolGlobalString('MAIN_DOCUMENT_IS_OUTSIDE_WEBROOT_SO_NOEXE_NOT_REQUIRED')) {
+			$this->assertFileExists($destdir.'/'.$filename, "$test The php attachment must be saved");
+		} else {
+			$this->assertFileExists($destdir.'/'.$filename.'.noexe', "$test The php attachment must be saved with .noexe");
+			$this->assertFileNotExistsCompat($destdir.'/'.$filename, "$test The php attachment must not be saved with its executable name");
+		}
+	}
+
+	/**
 	 * Unlink a contact of a ticket that does not exist
 	 *
 	 * @return void
@@ -631,5 +667,30 @@ class RestAPITicketTest extends AbstractRestAPITest
 		$this->getUrl('tickets/'.$ticket_id.'/contact/1/SUPPORTTEC', $test, 'POST', array("source" => "badsource"), 400);
 		$this->getUrl('tickets/'.$ticket_id.'/contact/1/NOTATYPE', $test, 'POST', array("source" => "internal"), 400);
 		$this->assertNotContains(1, $this->getTicketContactIds($test, $ticket_id, 'internal'), "$test The internal contact must not be linked");
+	}
+
+	/**
+	 * Assign or unassign a closed or canceled ticket, it must not be reopened
+	 *
+	 * @return void
+	 */
+	public function testRestTicketAssignClosedOrCanceled()
+	{
+		// Status closed (8) or canceled (9)
+		foreach (array(0 => 8, 1 => 9) as $cancel => $closedstatus) {
+			$test = "Assign a ".($cancel ? "canceled" : "closed")." ticket";
+
+			$ticket_id = $this->createTicket($test);
+			$result = $this->getUrl('tickets/'.$ticket_id.'/close', $test, 'POST', array("cancel" => $cancel));
+			$this->assertEquals($closedstatus, (int) $result['content']['status'], "$test The ticket must be closed or canceled");
+			$fk_user_assign = (int) ($result['content']['fk_user_assign'] ?? 0);
+
+			$this->getUrl('tickets/'.$ticket_id.'/assign', $test, 'POST', array("fk_user_assign" => 1), 409);
+			$this->getUrl('tickets/'.$ticket_id.'/assign', "$test (unassign)", 'POST', array("fk_user_assign" => 0), 409);
+
+			$result = $this->getUrl('tickets/'.$ticket_id, $test);
+			$this->assertEquals($closedstatus, (int) $result['content']['status'], "$test The status must not be changed");
+			$this->assertEquals($fk_user_assign, (int) ($result['content']['fk_user_assign'] ?? 0), "$test The assigned user must not be changed");
+		}
 	}
 }
