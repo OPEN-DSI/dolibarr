@@ -176,7 +176,10 @@ if (getDolGlobalString('MAIN_OPTIMIZEFORTEXTBROWSER')) {
 if (getDolGlobalInt('MAIN_MODULE_OPENIDCONNECT', 0) > 0 && isset($conf->file->main_authentication) && preg_match('/openid_connect/', $conf->file->main_authentication)) {
 	// Set a cookie to transfer rollback page information
 	$prefix = dol_getprefix('');
-	if (empty($_COOKIE["DOL_rollback_url_$prefix"])) {
+	// A background (ajax) call, like the tooltip of a link, is not a page to come back to: the login form would be
+	// posted to it after login (for example to core/ajax/ajaxtooltip.php) and the user would land on an error page.
+	$isajaxcall = (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest');
+	if (empty($_COOKIE["DOL_rollback_url_$prefix"]) && !$isajaxcall) {
 		dolSetCookie('DOL_rollback_url_'.$prefix, $_SERVER['REQUEST_URI'], time() + 3600);	// $_SERVER["REQUEST_URI"] is for example /mydolibarr/mypage.php
 	}
 
@@ -325,7 +328,12 @@ if ($disablenofollow) {
 <?php
 if (!empty($captcha)) {
 	// Add a variable param to force not using cache (jmobile)
-	$php_self = preg_replace('/[&\?]time=(\d+)/', '', $php_self); // Remove param time
+	// Remove all previous 'time' params first. $php_self is escaped with dol_escape_htmltag(), so separators
+	// may be '&amp;': without this, one more 'time' param is added on each load (endless URL, crawler trap).
+	$php_self = preg_replace('/(\?|&amp;|&)time=\d+/', '$1', $php_self);
+	$php_self = preg_replace('/(&amp;|&)+/', '&amp;', $php_self);
+	$php_self = preg_replace('/(\?|&amp;|&)+$/', '', $php_self);
+	$php_self = preg_replace('/\?(&amp;|&)/', '?', $php_self);
 	if (preg_match('/\?/', $php_self)) {
 		$php_self .= '&time='.dol_print_date(dol_now(), 'dayhourlog');
 	} else {
