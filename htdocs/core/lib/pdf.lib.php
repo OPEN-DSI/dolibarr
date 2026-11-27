@@ -2997,8 +2997,10 @@ function pdf_getlinetotalexcltax($object, $i, $outputlangs, $hidedetails = 0)
 		} elseif (empty($hidedetails) || $hidedetails > 1) {
 			$total_ht = (isModEnabled("multicurrency") && $object->multicurrency_tx != 1 ? $object->lines[$i]->multicurrency_total_ht : $object->lines[$i]->total_ht);
 			// The property situation_percent and the method getSituationRatio() exist only on invoice lines (FactureLigne)
-			if ($object->lines[$i] instanceof FactureLigne && !empty($object->lines[$i]->situation_percent) && $object->lines[$i]->situation_percent > 0) {
-				$total_ht *= $object->lines[$i]->getSituationRatio();
+			$line = $object->lines[$i];
+			// @phan-suppress-next-line PhanUndeclaredProperty
+			if ($line instanceof FactureLigne && !empty($line->situation_percent) && $line->situation_percent > 0) {
+				$total_ht *= $line->getSituationRatio();
 			}
 			$result .= price($sign * $total_ht, 0, $outputlangs);
 		}
@@ -3045,8 +3047,11 @@ function pdf_getlinetotalwithtax($object, $i, $outputlangs, $hidedetails = 0)
 			$result .= $outputlangs->transnoentities("Option");
 		} elseif (empty($hidedetails) || $hidedetails > 1) {
 			$total_ttc = (isModEnabled("multicurrency") && $object->multicurrency_tx != 1 ? $object->lines[$i]->multicurrency_total_ttc : $object->lines[$i]->total_ttc);
-			if ($object->lines[$i] instanceof FactureLigne && !empty($object->lines[$i]->situation_percent) && $object->lines[$i]->situation_percent > 0) {
-				$total_ttc *= $object->lines[$i]->getSituationRatio();
+			// The property situation_percent and the method getSituationRatio() exist only on invoice lines (FactureLigne)
+			$line = $object->lines[$i];
+			// @phan-suppress-next-line PhanUndeclaredProperty
+			if ($line instanceof FactureLigne && !empty($line->situation_percent) && $line->situation_percent > 0) {
+				$total_ttc *= $line->getSituationRatio();
 			}
 			$result .= price($sign * $total_ttc, 0, $outputlangs);
 		}
