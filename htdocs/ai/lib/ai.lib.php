@@ -73,6 +73,66 @@ function getListOfAIFeatures()
 }
 
 /**
+ * Return the values accepted for the reasoning effort of OpenAI-compatible APIs
+ *
+ * @return string[]
+ */
+function getListOfAiReasoningEfforts(): array
+{
+	return array('none', 'minimal', 'low', 'medium', 'high', 'xhigh');
+}
+
+/**
+ * Return the reasoning effort to send to an OpenAI-compatible API of a service, from the constant AI_API_<SERVICE>_REASONING_EFFORT
+ *
+ * @param	string	$service	Code of the AI service ('custom', 'chatgpt', ...)
+ * @return	string				One value of getListOfAiReasoningEfforts(), or '' to let the model decide
+ */
+function getAiReasoningEffort(string $service): string
+{
+	$effort = strtolower(getDolGlobalString('AI_API_'.strtoupper($service).'_REASONING_EFFORT'));
+	if ($effort === '') {
+		return '';
+	}
+	if (!in_array($effort, getListOfAiReasoningEfforts(), true)) {
+		dol_syslog("getAiReasoningEffort: unknown value '".$effort."' for service ".$service.", ignored", LOG_WARNING);
+		return '';
+	}
+
+	return $effort;
+}
+
+/**
+ * Return the values accepted for the temperature of OpenAI-compatible APIs
+ *
+ * @return string[]
+ */
+function getListOfAiTemperatures(): array
+{
+	return array('0.1', '0.2', '0.3', '0.5', '0.7', '1', '1.5', '2');
+}
+
+/**
+ * Return the temperature to send to an OpenAI-compatible API of a service, from the constant AI_API_<SERVICE>_TEMPERATURE
+ *
+ * @param	string		$service	Code of the AI service ('custom', 'chatgpt', ...)
+ * @return	float|null				One value of getListOfAiTemperatures(), or null to keep the default of the model
+ */
+function getAiTemperature(string $service): ?float
+{
+	$temperature = getDolGlobalString('AI_API_'.strtoupper($service).'_TEMPERATURE');
+	if ($temperature === '') {
+		return null;
+	}
+	if (!in_array($temperature, getListOfAiTemperatures(), true)) {
+		dol_syslog("getAiTemperature: invalid value '".$temperature."' for service ".$service.", ignored", LOG_WARNING);
+		return null;
+	}
+
+	return (float) $temperature;
+}
+
+/**
  * Get list of available ai services
  *
  * @return array<int|string,mixed>
@@ -2725,7 +2785,10 @@ function cleanToolSchemaForLLM(array $tools, bool $isLargeSchema = false)
 		// Get parameters
 		$toolParams = $tool['parameters'] ?? $tool['inputSchema'] ?? [];
 		// requestState is set by the chat after the user confirmed a write, never by the model.
-		unset($toolParams['properties']['requestState']);
+		// The properties of a tool without parameter may be an empty object (encoded as {} in JSON) instead of an array.
+		if (isset($toolParams['properties']) && is_array($toolParams['properties'])) {
+			unset($toolParams['properties']['requestState']);
+		}
 
 		if ($isLargeSchema && isset($toolParams['properties']) && is_array($toolParams['properties'])) {
 			$requiredList = $toolParams['required'] ?? [];
