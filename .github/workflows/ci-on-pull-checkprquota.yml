@@ -43,7 +43,7 @@ jobs:
     # the PR on this branch are not counted, so the PR on this branch are not checked either.
     if: github.event_name == 'pull_request' && github.event.pull_request.base.ref != '18.0'
     env:
-      MAX_PR_PER_USER_PER_DAY: 10
+      MAX_PR_PER_USER_PER_DAY: ${{ vars.MAX_PR_PER_USER_PER_DAY || 10 }}
     steps:
       - name: Check the number of PR created by the author of the PR and by the authors of its commits during the last 24 hours
         env:
